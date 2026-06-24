@@ -1,0 +1,173 @@
+import { createPublicClient, http, formatUnits, parseUnits } from 'viem';
+import { celo } from 'viem/chains';
+
+// ── Contracts ──────────────────────────────────────────────
+export const G_TOKEN = '0x62B8B11039FcfE5aB0C56E502b1C372A3d2a9c7A' as const;
+export const G_DECIMALS = 18;
+
+// GoodDollar Identity contract on Celo mainnet
+// Verify at: https://docs.gooddollar.org/about-the-protocol/protocol-v3-documentation/core-contracts-and-api/identity
+const IDENTITY_CONTRACT = '0xC361A6E67822a0EDc17D899227dd9FC50BD62F42' as const;
+
+// UBIScheme on Celo mainnet
+// Verify at: https://github.com/GoodDollar/GoodProtocol
+const UBI_SCHEME = '0x43d72Ff17701B2DA814620735C39C620Ce0ea4A1' as const;
+
+// ── Public client ──────────────────────────────────────────
+const client = createPublicClient({
+  chain: celo,
+  transport: http('https://forno.celo.org'),
+});
+
+// ── ABIs ───────────────────────────────────────────────────
+const ERC20_ABI = [
+  {
+    name: 'balanceOf',
+    type: 'function' as const,
+    inputs: [{ name: 'account', type: 'address' }],
+    outputs: [{ type: 'uint256' }],
+    stateMutability: 'view' as const,
+  },
+] as const;
+
+const IDENTITY_ABI = [
+  {
+    name: 'isWhitelisted',
+    type: 'function' as const,
+    inputs: [{ name: 'account', type: 'address' }],
+    outputs: [{ type: 'bool' }],
+    stateMutability: 'view' as const,
+  },
+] as const;
+
+const UBI_ABI = [
+  {
+    name: 'checkEntitlement',
+    type: 'function' as const,
+    inputs: [{ name: 'account', type: 'address' }],
+    outputs: [{ type: 'uint256' }],
+    stateMutability: 'view' as const,
+  },
+] as const;
+
+// ── On-chain reads ─────────────────────────────────────────
+export async function getGBalance(address: string): Promise<number> {
+  try {
+    const bal = await client.readContract({
+      address: G_TOKEN,
+      abi: ERC20_ABI,
+      functionName: 'balanceOf',
+      args: [address as `0x${string}`],
+    });
+    return parseFloat(formatUnits(bal as bigint, G_DECIMALS));
+  } catch {
+    return 0;
+  }
+}
+
+export async function isWhitelisted(address: string): Promise<boolean> {
+  try {
+    const result = await client.readContract({
+      address: IDENTITY_CONTRACT,
+      abi: IDENTITY_ABI,
+      functionName: 'isWhitelisted',
+      args: [address as `0x${string}`],
+    });
+    return result as boolean;
+  } catch {
+    return false;
+  }
+}
+
+export async function getClaimable(address: string): Promise<number> {
+  try {
+    const amount = await client.readContract({
+      address: UBI_SCHEME,
+      abi: UBI_ABI,
+      functionName: 'checkEntitlement',
+      args: [address as `0x${string}`],
+    });
+    return parseFloat(formatUnits(amount as bigint, G_DECIMALS));
+  } catch {
+    return 0;
+  }
+}
+
+/** Watch for incoming G$ to a target address — returns unwatch fn */
+export function watchIncomingG(
+  targetAddress: string,
+  onReceive: (from: string, amount: number) => void
+): () => void {
+  const TRANSFER_TOPIC =
+    '0xddf252ad1be2c89b69c2b068fc378daa952ba7f163c4a11628f55a4df523b3ef';
+
+  const interval = setInterval(async () => {
+    try {
+      const logs = await client.getLogs({
+        address: G_TOKEN,
+        event: {
+          type: 'event',
+          name: 'Transfer',
+          inputs: [
+            { name: 'from', type: 'address', indexed: true },
+            { name: 'to', type: 'address', indexed: true },
+            { name: 'value', type: 'uint256', indexed: false },
+          ],
+        },
+        args: { to: targetAddress as `0x${string}` },
+        fromBlock: 'latest',
+      });
+      for (const log of logs) {
+        const args = log.args as { from: string; to: string; value: bigint };
+        const amount = parseFloat(formatUnits(args.value, G_DECIMALS));
+        onReceive(args.from, amount);
+      }
+    } catch {
+      // ignore polling errors
+    }
+  }, 12_000); // poll every ~Celo block time
+
+  return () => clearInterval(interval);
+}
+
+// ── Price feeds ────────────────────────────────────────────
+export async function getGPriceUSD(): Promise<number> {
+  try {
+    const res = await fetch(
+      'https://api.coingecko.com/api/v3/simple/price?ids=gooddollar&vs_currencies=usd',
+      { headers: { Accept: 'application/json' } }
+    );
+    const data = await res.json();
+    return (data as { gooddollar?: { usd?: number } }).gooddollar?.usd ?? 0.0012;
+  } catch {
+    return 0.0012; // ~$0.0012 per G$ fallback
+  }
+}
+
+export async function getUSDToNGN(): Promise<number> {
+  try {
+    const res = await fetch('https://api.exchangerate-api.com/v4/latest/USD');
+    const data = await res.json();
+    return (data as { rates?: { NGN?: number } }).rates?.NGN ?? 1600;
+  } catch {
+    return 1600;
+  }
+}
+
+// ── Conversion helpers ─────────────────────────────────────
+export function gToNGN(g: number, priceUSD: number, usdNgn: number): number {
+  return g * priceUSD * usdNgn;
+}
+
+export function ngnToG(ngn: number, priceUSD: number, usdNgn: number): number {
+  if (!priceUSD || !usdNgn) return 0;
+  return ngn / (priceUSD * usdNgn);
+}
+
+// ── Deep-link URLs ─────────────────────────────────────────
+export const GD_URLS = {
+  verify: 'https://gooddollar.org/#/AppNavigation/UBI/VerifyWrapper',
+  claim: 'https://gooddollar.org/#/AppNavigation/UBI',
+  learnMore: 'https://gooddollar.org',
+  walletApp: 'https://wallet.gooddollar.org',
+};
