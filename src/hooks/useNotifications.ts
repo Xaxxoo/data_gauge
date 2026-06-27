@@ -81,7 +81,13 @@ export function useNotifications() {
 
       // Load previously fired thresholds
       const raw = await AsyncStorage.getItem(FIRED_THRESHOLDS_KEY);
-      let fired: FiredThresholds = raw ? JSON.parse(raw) : { bundleId: '', thresholds: [] };
+      let fired: FiredThresholds;
+      try {
+        fired = raw ? JSON.parse(raw) : { bundleId: '', thresholds: [] };
+      } catch {
+        console.warn('[BurnRate] Fired thresholds data corrupted, resetting');
+        fired = { bundleId: '', thresholds: [] };
+      }
 
       // Reset if different bundle
       if (fired.bundleId !== bundle.id) {
