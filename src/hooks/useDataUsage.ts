@@ -45,36 +45,41 @@ export function useDataUsage() {
   });
 
   const load = useCallback(async () => {
-    const [settings, daily, sessions, bundles] = await Promise.all([
-      getSettings(),
-      getDailyUsage(30),
-      getSessions(50),
-      getBundles(),
-    ]);
+    try {
+      const [settings, daily, sessions, bundles] = await Promise.all([
+        getSettings(),
+        getDailyUsage(30),
+        getSessions(50),
+        getBundles(),
+      ]);
 
-    const today = todayISO();
-    const todayUsage = daily.find((d) => d.date === today) ?? null;
+      const today = todayISO();
+      const todayUsage = daily.find((d) => d.date === today) ?? null;
 
-    const totalThisMonthMB = daily.reduce((sum, d) => sum + d.totalMB, 0);
-    const totalThisMonthNaira = daily.reduce((sum, d) => sum + d.costNaira, 0);
+      const totalThisMonthMB = daily.reduce((sum, d) => sum + d.totalMB, 0);
+      const totalThisMonthNaira = daily.reduce((sum, d) => sum + d.costNaira, 0);
 
-    const activeBundle = settings.activeBundleId
-      ? bundles.find((b) => b.id === settings.activeBundleId) ?? null
-      : bundles[0] ?? null;
+      const activeBundle = settings?.activeBundleId
+        ? bundles.find((b) => b.id === settings.activeBundleId) ?? null
+        : bundles[0] ?? null;
 
-    setState({
-      settings,
-      dailyUsage: daily,
-      todayUsage,
-      sessions,
-      bundles,
-      activeBundle,
-      loading: false,
-      totalThisMonthMB,
-      totalThisMonthNaira,
-      todayMB: todayUsage?.totalMB ?? 0,
-      todayNaira: todayUsage?.costNaira ?? 0,
-    });
+      setState({
+        settings,
+        dailyUsage: daily,
+        todayUsage,
+        sessions,
+        bundles,
+        activeBundle,
+        loading: false,
+        totalThisMonthMB,
+        totalThisMonthNaira,
+        todayMB: todayUsage?.totalMB ?? 0,
+        todayNaira: todayUsage?.costNaira ?? 0,
+      });
+    } catch (err) {
+      console.error('[useDataUsage] Failed to load data:', err);
+      setState((prev) => ({ ...prev, loading: false }));
+    }
   }, []);
 
   useEffect(() => {
