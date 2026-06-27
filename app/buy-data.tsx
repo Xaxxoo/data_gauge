@@ -148,21 +148,30 @@ export default function BuyDataScreen() {
         };
         await saveGDPurchase(updated);
 
-        const result = await buyData(
-          carrierId,
-          activePurchase.phoneNumber,
-          selectedPlan.variation_code,
-          activePurchase.amountNGN
-        );
+        try {
+          const result = await buyData(
+            carrierId,
+            activePurchase.phoneNumber,
+            selectedPlan.variation_code,
+            activePurchase.amountNGN
+          );
 
-        const final: GDPurchase = {
-          ...updated,
-          status: result.success ? 'delivered' : 'failed',
-          transactionId: result.transactionId,
-        };
-        await saveGDPurchase(final);
-        setActivePurchase(final);
-        setStep(result.success ? 'done' : 'failed');
+          const final: GDPurchase = {
+            ...updated,
+            status: result.success ? 'delivered' : 'failed',
+            transactionId: result.transactionId,
+          };
+          await saveGDPurchase(final);
+          setActivePurchase(final);
+          setStep(result.success ? 'done' : 'failed');
+        } catch (err) {
+          console.error('[BuyData] buyData threw unexpectedly:', err);
+          const failed: GDPurchase = { ...updated, status: 'failed' };
+          await saveGDPurchase(failed).catch(() => {});
+          setActivePurchase(failed);
+          setStep('failed');
+        }
+
         loadHistory();
         gd.refresh();
       }
@@ -170,26 +179,35 @@ export default function BuyDataScreen() {
 
     unwatchRef.current = unwatch;
 
-    if (process.env.EXPO_PUBLIC_VTPASS_SANDBOX !== 'false') {
+    if (IS_SANDBOX) {
       setTimeout(async () => {
         unwatch();
         unwatchRef.current = null;
 
-        const result = await buyData(
-          carrierId,
-          activePurchase.phoneNumber,
-          selectedPlan.variation_code,
-          activePurchase.amountNGN
-        );
+        try {
+          const result = await buyData(
+            carrierId,
+            activePurchase.phoneNumber,
+            selectedPlan.variation_code,
+            activePurchase.amountNGN
+          );
 
-        const final: GDPurchase = {
-          ...activePurchase,
-          status: result.success ? 'delivered' : 'failed',
-          transactionId: result.transactionId,
-        };
-        await saveGDPurchase(final);
-        setActivePurchase(final);
-        setStep(result.success ? 'done' : 'failed');
+          const final: GDPurchase = {
+            ...activePurchase,
+            status: result.success ? 'delivered' : 'failed',
+            transactionId: result.transactionId,
+          };
+          await saveGDPurchase(final);
+          setActivePurchase(final);
+          setStep(result.success ? 'done' : 'failed');
+        } catch (err) {
+          console.error('[BuyData] sandbox buyData threw unexpectedly:', err);
+          const failed: GDPurchase = { ...activePurchase, status: 'failed' };
+          await saveGDPurchase(failed).catch(() => {});
+          setActivePurchase(failed);
+          setStep('failed');
+        }
+
         loadHistory();
         gd.refresh();
       }, 5000);
