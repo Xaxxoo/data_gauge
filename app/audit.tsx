@@ -49,10 +49,15 @@ export default function AuditScreen() {
   });
 
   const load = useCallback(async () => {
-    const [e, s] = await Promise.all([getAuditEntries(), getSettings()]);
-    setEntries(e);
-    setDefaultCarrier(s.selectedCarrierId as CarrierId);
-    setForm((f) => ({ ...f, carrierId: s.selectedCarrierId as CarrierId }));
+    try {
+      const [e, s] = await Promise.all([getAuditEntries(), getSettings()]);
+      setEntries(e);
+      setDefaultCarrier(s.selectedCarrierId as CarrierId);
+      setForm((f) => ({ ...f, carrierId: s.selectedCarrierId as CarrierId }));
+    } catch (err) {
+      console.error('[AuditScreen] Failed to load data:', err);
+      Alert.alert('Error', 'Could not load audit data. Please try again.');
+    }
   }, []);
 
   useEffect(() => { load(); }, [load]);
