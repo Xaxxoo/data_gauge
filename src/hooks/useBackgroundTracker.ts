@@ -140,19 +140,23 @@ export function useBackgroundTracker() {
     // Also sample when app comes to foreground
     const sub = AppState.addEventListener('change', (state) => {
       if (state === 'active') {
-        sampleAndRecordUsage();
+        sampleAndRecordUsage().catch((err) =>
+          console.warn('[BurnRate] Foreground sample error:', err)
+        );
       }
     });
 
     // Set initial sample timestamp
-    AsyncStorage.getItem(LAST_SAMPLE_KEY).then((raw) => {
-      if (!raw) {
-        AsyncStorage.setItem(
-          LAST_SAMPLE_KEY,
-          JSON.stringify({ timestamp: Date.now(), estimatedBytes: 0 })
-        );
-      }
-    });
+    AsyncStorage.getItem(LAST_SAMPLE_KEY)
+      .then((raw) => {
+        if (!raw) {
+          return AsyncStorage.setItem(
+            LAST_SAMPLE_KEY,
+            JSON.stringify({ timestamp: Date.now(), estimatedBytes: 0 })
+          );
+        }
+      })
+      .catch((err) => console.warn('[BurnRate] Failed to init sample timestamp:', err));
 
     return () => {
       sub.remove();
