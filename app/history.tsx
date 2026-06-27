@@ -6,6 +6,7 @@ import {
   TouchableOpacity,
   Dimensions,
   Platform,
+  ActivityIndicator,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
@@ -264,7 +265,14 @@ export default function HistoryScreen() {
           </Card>
         )}
 
-        {data.length === 0 && (
+        {loading && data.length === 0 && (
+          <Card style={styles.empty}>
+            <ActivityIndicator size="large" color={colors.accent} />
+            <Text variant="body" style={{ textAlign: 'center', marginTop: 8 }}>Loading history...</Text>
+          </Card>
+        )}
+
+        {!loading && data.length === 0 && (
           <Card style={styles.empty}>
             <Ionicons name="bar-chart-outline" size={40} color={colors.textMuted} />
             <Text variant="h3" style={{ textAlign: 'center' }}>No usage data yet</Text>
