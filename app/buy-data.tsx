@@ -36,7 +36,11 @@ import type { CarrierId } from '../src/types';
 
 const GD_GREEN = '#00C853';
 
-const PLATFORM_WALLET = process.env.EXPO_PUBLIC_PLATFORM_WALLET ?? '0x0000000000000000000000000000000000000000';
+const PLATFORM_WALLET = process.env.EXPO_PUBLIC_PLATFORM_WALLET ?? null;
+const WALLET_CONFIGURED =
+  !!PLATFORM_WALLET &&
+  !/^0x0+$/.test(PLATFORM_WALLET) &&
+  PLATFORM_WALLET.length === 42;
 
 type Step = 'select' | 'confirm' | 'pay' | 'waiting' | 'done' | 'failed';
 
@@ -85,6 +89,10 @@ export default function BuyDataScreen() {
   const canAfford = gd.balance >= planCostG;
 
   function handleConfirm() {
+    if (!WALLET_CONFIGURED) {
+      Alert.alert('Not Configured', 'EXPO_PUBLIC_PLATFORM_WALLET is not set. The app cannot accept payments.');
+      return;
+    }
     if (!selectedPlan || !phone.trim()) {
       Alert.alert('Missing info', 'Select a plan and enter your phone number');
       return;
@@ -104,7 +112,7 @@ export default function BuyDataScreen() {
   }
 
   async function handleStartPayment() {
-    if (!selectedPlan) return;
+    if (!selectedPlan || !WALLET_CONFIGURED) return;
 
     const purchase: GDPurchase = {
       id: generateId(),
@@ -265,6 +273,21 @@ export default function BuyDataScreen() {
             Spend your GoodDollar earnings on real mobile data — MTN, Airtel, Glo, 9mobile
           </Text>
 
+          {/* Wallet misconfiguration warning */}
+          {!WALLET_CONFIGURED && (
+            <Card style={styles.walletErrorCard}>
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+                <Ionicons name="warning-outline" size={16} color={colors.danger} />
+                <Text style={{ color: colors.danger, fontWeight: '700', fontSize: 13 }}>
+                  Payments unavailable
+                </Text>
+              </View>
+              <Text variant="body" style={{ marginTop: 4 }}>
+                EXPO_PUBLIC_PLATFORM_WALLET is not configured. Set it in your .env file and rebuild the app before accepting payments.
+              </Text>
+            </Card>
+          )}
+
           {/* G$ Balance pill */}
           {gd.walletAddress ? (
             <View style={styles.balancePill}>
@@ -403,7 +426,7 @@ export default function BuyDataScreen() {
             label="Continue to Payment"
             size="lg"
             onPress={handleConfirm}
-            disabled={!selectedPlan || !phone.trim() || !gd.walletAddress}
+            disabled={!selectedPlan || !phone.trim() || !gd.walletAddress || !WALLET_CONFIGURED}
           />
 
           {/* Purchase history */}
@@ -496,11 +519,11 @@ export default function BuyDataScreen() {
                 </Text>
 
                 <Card style={styles.addressCard}>
-                  <Text style={styles.platformAddr}>{PLATFORM_WALLET}</Text>
+                  <Text style={styles.platformAddr}>{PLATFORM_WALLET ?? '—'}</Text>
                   <TouchableOpacity
                     style={styles.copyBtn}
                     onPress={() => {
-                      Clipboard.setStringAsync(PLATFORM_WALLET);
+                      if (PLATFORM_WALLET) Clipboard.setStringAsync(PLATFORM_WALLET);
                       Alert.alert('Copied', 'Address copied to clipboard');
                     }}
                   >
@@ -579,4 +602,5 @@ const getStyles = (colors: ThemeColors) => StyleSheet.create({
   payStep: { flexDirection: 'row', gap: 10, alignItems: 'flex-start' },
   payStepNum: { width: 22, height: 22, borderRadius: 11, backgroundColor: GD_GREEN, alignItems: 'center', justifyContent: 'center' },
   sandboxNote: { padding: 10, backgroundColor: colors.warning + '18', borderRadius: 8, marginBottom: 8 },
+  walletErrorCard: { borderColor: colors.danger + '55', borderWidth: 1, backgroundColor: colors.danger + '0D' },
 });
