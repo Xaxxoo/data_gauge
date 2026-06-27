@@ -32,7 +32,7 @@ export function useSpeedTest(networkType: string) {
         timestamp: new Date().toISOString(),
         downloadMbps: parseFloat(downloadMbps.toFixed(2)),
         uploadMbps: parseFloat(uploadMbps.toFixed(2)),
-        pingMs: parseFloat(pingMs.toFixed(0)),
+        pingMs: Math.round(pingMs),
         carrierId: settings.selectedCarrierId as CarrierId,
         networkType,
       };
