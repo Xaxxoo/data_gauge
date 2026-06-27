@@ -76,8 +76,8 @@ export default function BundlesScreen() {
     const usedMB = parseFloat(form.usedMB) || 0;
     const validity = parseInt(form.validityDays) || 30;
 
-    if (isNaN(totalMB) || totalMB <= 0) {
-      Alert.alert('Error', 'Enter a valid data amount');
+    if (isNaN(totalMB) || totalMB < 1 || totalMB > 512 * 1024) {
+      Alert.alert('Error', 'Data amount must be between 1 MB and 512 GB');
       return;
     }
 
