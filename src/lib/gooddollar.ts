@@ -131,25 +131,49 @@ export function watchIncomingG(
 }
 
 // ── Price feeds ────────────────────────────────────────────
+async function fetchWithRetry(
+  url: string,
+  options?: RequestInit,
+  retries = 2,
+  delayMs = 1500
+): Promise<Response> {
+  let lastErr: unknown;
+  for (let attempt = 0; attempt <= retries; attempt++) {
+    try {
+      const res = await fetch(url, options);
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      return res;
+    } catch (err) {
+      lastErr = err;
+      if (attempt < retries) {
+        await new Promise((r) => setTimeout(r, delayMs));
+      }
+    }
+  }
+  throw lastErr;
+}
+
 export async function getGPriceUSD(): Promise<number> {
   try {
-    const res = await fetch(
+    const res = await fetchWithRetry(
       'https://api.coingecko.com/api/v3/simple/price?ids=gooddollar&vs_currencies=usd',
       { headers: { Accept: 'application/json' } }
     );
     const data = await res.json();
     return (data as { gooddollar?: { usd?: number } }).gooddollar?.usd ?? 0.0012;
   } catch {
-    return 0.0012; // ~$0.0012 per G$ fallback
+    console.warn('[GoodDollar] getGPriceUSD failed after retries, using fallback');
+    return 0.0012;
   }
 }
 
 export async function getUSDToNGN(): Promise<number> {
   try {
-    const res = await fetch('https://api.exchangerate-api.com/v4/latest/USD');
+    const res = await fetchWithRetry('https://api.exchangerate-api.com/v4/latest/USD');
     const data = await res.json();
     return (data as { rates?: { NGN?: number } }).rates?.NGN ?? 1600;
   } catch {
+    console.warn('[GoodDollar] getUSDToNGN failed after retries, using fallback');
     return 1600;
   }
 }
