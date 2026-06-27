@@ -42,6 +42,8 @@ const WALLET_CONFIGURED =
   !/^0x0+$/.test(PLATFORM_WALLET) &&
   PLATFORM_WALLET.length === 42;
 
+const IS_SANDBOX = process.env.EXPO_PUBLIC_VTPASS_SANDBOX !== 'false';
+
 type Step = 'select' | 'confirm' | 'pay' | 'waiting' | 'done' | 'failed';
 
 export default function BuyDataScreen() {
@@ -252,7 +254,7 @@ export default function BuyDataScreen() {
           <Text variant="body" style={{ textAlign: 'center' }}>
             Watching the Celo blockchain for your transfer. This usually takes 5–15 seconds.
           </Text>
-          {process.env.EXPO_PUBLIC_VTPASS_SANDBOX !== 'false' && (
+          {IS_SANDBOX && (
             <Badge label="SANDBOX MODE — Auto-completing" color={colors.warning} size="md" />
           )}
         </View>
@@ -284,6 +286,21 @@ export default function BuyDataScreen() {
               </View>
               <Text variant="body" style={{ marginTop: 4 }}>
                 EXPO_PUBLIC_PLATFORM_WALLET is not configured. Set it in your .env file and rebuild the app before accepting payments.
+              </Text>
+            </Card>
+          )}
+
+          {/* Sandbox mode banner */}
+          {IS_SANDBOX && (
+            <Card style={styles.sandboxBanner}>
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+                <Ionicons name="flask-outline" size={16} color={colors.warning} />
+                <Text style={{ color: colors.warning, fontWeight: '700', fontSize: 13 }}>
+                  Sandbox mode — no real purchases
+                </Text>
+              </View>
+              <Text variant="body" style={{ marginTop: 4 }}>
+                Payments are simulated. Set EXPO_PUBLIC_VTPASS_SANDBOX=false and rebuild to go live.
               </Text>
             </Card>
           )}
@@ -334,12 +351,7 @@ export default function BuyDataScreen() {
 
           {/* Plan selector */}
           <Card>
-            <Text variant="h3" style={{ marginBottom: 10 }}>
-              Choose Bundle
-              {process.env.EXPO_PUBLIC_VTPASS_SANDBOX !== 'false' && (
-                <Text style={{ color: colors.warning, fontSize: 11 }}> (sandbox)</Text>
-              )}
-            </Text>
+            <Text variant="h3" style={{ marginBottom: 10 }}>Choose Bundle</Text>
             {loadingPlans ? (
               <ActivityIndicator color={colors.accent} />
             ) : (
@@ -548,7 +560,7 @@ export default function BuyDataScreen() {
                   ))}
                 </View>
 
-                {process.env.EXPO_PUBLIC_VTPASS_SANDBOX !== 'false' && (
+                {IS_SANDBOX && (
                   <View style={styles.sandboxNote}>
                     <Text style={{ color: colors.warning, fontSize: 12 }}>
                       Sandbox mode — no real G$ needed. Tap below to simulate payment.
@@ -603,4 +615,5 @@ const getStyles = (colors: ThemeColors) => StyleSheet.create({
   payStepNum: { width: 22, height: 22, borderRadius: 11, backgroundColor: GD_GREEN, alignItems: 'center', justifyContent: 'center' },
   sandboxNote: { padding: 10, backgroundColor: colors.warning + '18', borderRadius: 8, marginBottom: 8 },
   walletErrorCard: { borderColor: colors.danger + '55', borderWidth: 1, backgroundColor: colors.danger + '0D' },
+  sandboxBanner: { borderColor: colors.warning + '55', borderWidth: 1, backgroundColor: colors.warning + '0D' },
 });
