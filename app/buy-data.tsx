@@ -44,6 +44,12 @@ const WALLET_CONFIGURED =
 
 const IS_SANDBOX = process.env.EXPO_PUBLIC_VTPASS_SANDBOX !== 'false';
 
+/** Parse a VTPass variation_amount string; returns 0 if the value is not a valid number. */
+function parseAmount(raw: string): number {
+  const n = parseFloat(raw);
+  return isNaN(n) ? 0 : n;
+}
+
 type Step = 'select' | 'confirm' | 'pay' | 'waiting' | 'done' | 'failed';
 
 export default function BuyDataScreen() {
@@ -86,7 +92,7 @@ export default function BuyDataScreen() {
   }, []);
 
   const planCostG = selectedPlan
-    ? gd.toG(parseFloat(selectedPlan.variation_amount))
+    ? gd.toG(parseAmount(selectedPlan.variation_amount))
     : 0;
   const canAfford = gd.balance >= planCostG;
 
@@ -121,7 +127,7 @@ export default function BuyDataScreen() {
       timestamp: new Date().toISOString(),
       carrierId,
       planName: selectedPlan.name,
-      amountNGN: parseFloat(selectedPlan.variation_amount),
+      amountNGN: parseAmount(selectedPlan.variation_amount),
       amountG: planCostG,
       phoneNumber: phone.trim(),
       status: 'pending',
@@ -374,7 +380,7 @@ export default function BuyDataScreen() {
               <ActivityIndicator color={colors.accent} />
             ) : (
               variations.map((v) => {
-                const costG = gd.toG(parseFloat(v.variation_amount));
+                const costG = gd.toG(parseAmount(v.variation_amount));
                 const affordable = gd.balance >= costG;
                 const isSelected = selectedPlan?.variation_code === v.variation_code;
                 return (
@@ -392,7 +398,7 @@ export default function BuyDataScreen() {
                         {v.name}
                       </Text>
                       <Text style={{ fontSize: 11, color: colors.textMuted }}>
-                        {formatNaira(parseFloat(v.variation_amount))}
+                        {formatNaira(parseAmount(v.variation_amount))}
                       </Text>
                     </View>
                     <View style={{ alignItems: 'flex-end' }}>
@@ -441,7 +447,7 @@ export default function BuyDataScreen() {
               </View>
               <View style={styles.summaryRow}>
                 <Text variant="body">Price (NGN)</Text>
-                <Text style={styles.summaryVal}>{formatNaira(parseFloat(selectedPlan.variation_amount))}</Text>
+                <Text style={styles.summaryVal}>{formatNaira(parseAmount(selectedPlan.variation_amount))}</Text>
               </View>
               <View style={[styles.summaryRow, styles.summaryTotal]}>
                 <Text style={{ fontWeight: '700', color: colors.textPrimary }}>You Pay (G$)</Text>
