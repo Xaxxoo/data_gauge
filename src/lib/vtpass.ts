@@ -58,10 +58,15 @@ export async function getVariations(carrierId: string): Promise<VTVariation[]> {
     const res = await fetch(`${BASE}/service-variations?serviceID=${serviceID}`, {
       headers: headers(),
     });
+    if (!res.ok) {
+      console.error(`[VTPass] getVariations failed: HTTP ${res.status} ${res.statusText}`);
+      return [];
+    }
     const data = await res.json();
     return (data as { content?: { variations?: VTVariation[] } }).content?.variations ?? [];
-  } catch {
-    return getMockVariations(carrierId);
+  } catch (err) {
+    console.error('[VTPass] getVariations network error:', err);
+    return [];
   }
 }
 
@@ -91,6 +96,12 @@ export async function buyData(
       headers: headers(),
       body: JSON.stringify(body),
     });
+
+    if (!res.ok) {
+      console.error(`[VTPass] buyData failed: HTTP ${res.status} ${res.statusText}`);
+      return { success: false, message: `Payment request failed (HTTP ${res.status}) — please try again` };
+    }
+
     const data = await res.json();
     const d = data as {
       code?: string;
@@ -105,8 +116,11 @@ export async function buyData(
         message: 'Data purchased successfully!',
       };
     }
+
+    console.error(`[VTPass] buyData API error: code=${d.code} message=${d.response_description}`);
     return { success: false, message: d.response_description ?? 'Purchase failed' };
-  } catch {
+  } catch (err) {
+    console.error('[VTPass] buyData network error:', err);
     return { success: false, message: 'Network error — please try again' };
   }
 }
