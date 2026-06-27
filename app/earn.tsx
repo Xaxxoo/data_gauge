@@ -26,6 +26,17 @@ import { GD_URLS } from '../src/lib/gooddollar';
 const GD_GREEN = '#00C853';
 const GD_BLUE = '#1976D2';
 
+// Minimal EIP-1193 provider interface (MetaMask / MiniPay / Valora injected wallet)
+interface EIP1193Provider {
+  request(args: { method: string; params?: unknown[] }): Promise<unknown>;
+}
+
+declare global {
+  interface Window {
+    ethereum?: EIP1193Provider;
+  }
+}
+
 export default function EarnScreen() {
   const { colors, isDark, setMode, mode } = useTheme();
   const styles = React.useMemo(() => getStyles(colors), [colors]);
@@ -46,15 +57,17 @@ export default function EarnScreen() {
   }, [gd]);
 
   async function connectWeb3Wallet() {
-    if (typeof window !== 'undefined' && (window as any).ethereum) {
+    if (typeof window !== 'undefined' && window.ethereum) {
       setIsConnecting(true);
       try {
-        const accounts = await (window as any).ethereum.request({ method: 'eth_requestAccounts' });
+        const result = await window.ethereum.request({ method: 'eth_requestAccounts' });
+        const accounts = result as string[];
         if (accounts && accounts.length > 0) {
           await gd.setWallet(accounts[0]);
         }
-      } catch (err: any) {
-        Alert.alert('Connection Failed', err.message || 'Could not connect to wallet');
+      } catch (err) {
+        const message = err instanceof Error ? err.message : 'Could not connect to wallet';
+        Alert.alert('Connection Failed', message);
       } finally {
         setIsConnecting(false);
       }
@@ -137,12 +150,12 @@ export default function EarnScreen() {
               Connect via MiniPay, MetaMask, or paste your address manually.
             </Text>
             <Button
-              label={typeof window !== 'undefined' && (window as any).ethereum ? "Connect Web3 Wallet" : "Enter Wallet Address"}
+              label={typeof window !== 'undefined' && window.ethereum ? "Connect Web3 Wallet" : "Enter Wallet Address"}
               onPress={connectWeb3Wallet}
               loading={isConnecting}
               style={{ marginTop: 8, width: '100%' }}
             />
-            {typeof window !== 'undefined' && (window as any).ethereum && (
+            {typeof window !== 'undefined' && window.ethereum && (
               <Button
                 label="Enter Address Manually"
                 variant="ghost"
