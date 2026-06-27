@@ -97,8 +97,8 @@ export default function BuyDataScreen() {
       Alert.alert('Missing info', 'Select a plan and enter your phone number');
       return;
     }
-    if (phone.replace(/\D/g, '').length < 10) {
-      Alert.alert('Invalid number', 'Enter a valid Nigerian phone number');
+    if (!/^0[789]\d{9}$/.test(phone.replace(/\s|-/g, ''))) {
+      Alert.alert('Invalid number', 'Enter an 11-digit Nigerian number starting with 07, 08, or 09 (e.g. 08012345678)');
       return;
     }
     if (!canAfford) {
