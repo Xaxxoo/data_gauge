@@ -5,15 +5,20 @@ import {
   getGBalance,
   isWhitelisted,
   getClaimable,
+  getContractCredits,
   getGPriceUSD,
   getUSDToNGN,
   gToNGN,
   ngnToG,
   watchIncomingG,
+  depositCreditsOnChain,
+  spendCreditsOnChain,
+  withdrawCreditsOnChain,
+  CONTRACT_CONFIGURED,
 } from '../lib/gooddollar';
 
 const WALLET_KEY = 'gd_wallet_address';
-const PRICE_TTL = 5 * 60 * 1000; // 5 min cache
+const PRICE_TTL  = 5 * 60 * 1000; // 5 min cache
 
 // SecureStore doesn't work on web — fall back to AsyncStorage
 const storage = {
@@ -35,33 +40,35 @@ const storage = {
 };
 
 export interface GoodDollarState {
-  walletAddress: string | null;
-  balance: number;        // G$
-  claimable: number;      // G$ available to claim today
-  verified: boolean;      // whitelisted on GoodDollar identity
-  priceUSD: number;       // G$ in USD
-  usdToNGN: number;       // USD/NGN rate
-  loading: boolean;
-  refreshing: boolean;
-  lastUpdated: Date | null;
+  walletAddress:   string | null;
+  balance:         number;   // G$ in wallet
+  contractCredits: number;   // G$ deposited in DataGaugeCredits contract
+  claimable:       number;   // G$ claimable today from UBI
+  verified:        boolean;  // whitelisted on GoodDollar identity
+  priceUSD:        number;   // G$ in USD
+  usdToNGN:        number;   // USD/NGN rate
+  loading:         boolean;
+  refreshing:      boolean;
+  lastUpdated:     Date | null;
 }
 
 export function useGoodDollar() {
   const [state, setState] = useState<GoodDollarState>({
-    walletAddress: null,
-    balance: 0,
-    claimable: 0,
-    verified: false,
-    priceUSD: 0.0012,
-    usdToNGN: 1600,
-    loading: true,
-    refreshing: false,
-    lastUpdated: null,
+    walletAddress:   null,
+    balance:         0,
+    contractCredits: 0,
+    claimable:       0,
+    verified:        false,
+    priceUSD:        0.0012,
+    usdToNGN:        1600,
+    loading:         true,
+    refreshing:      false,
+    lastUpdated:     null,
   });
 
   const priceCache = useRef<{ priceUSD: number; usdToNGN: number; ts: number } | null>(null);
 
-  // ── Price fetch with cache ─────────────────────────────
+  // ── Price fetch with cache ───────────────────────────────
   async function fetchPrices() {
     const now = Date.now();
     if (priceCache.current && now - priceCache.current.ts < PRICE_TTL) {
@@ -72,7 +79,7 @@ export function useGoodDollar() {
     return { priceUSD, usdToNGN };
   }
 
-  // ── Refresh on-chain data ──────────────────────────────
+  // ── Refresh all on-chain data ────────────────────────────
   const refresh = useCallback(async (silent = false) => {
     const addr = await storage.getItem(WALLET_KEY);
     if (!silent) setState((s) => ({ ...s, refreshing: true }));
@@ -82,40 +89,40 @@ export function useGoodDollar() {
     if (!addr) {
       setState((s) => ({
         ...s,
-        walletAddress: null,
-        loading: false,
-        refreshing: false,
+        walletAddress:   null,
+        contractCredits: 0,
+        loading:         false,
+        refreshing:      false,
         priceUSD,
         usdToNGN,
       }));
       return;
     }
 
-    const [balance, verified, claimable] = await Promise.all([
+    const [balance, verified, claimable, contractCredits] = await Promise.all([
       getGBalance(addr),
       isWhitelisted(addr),
       getClaimable(addr),
+      getContractCredits(addr),
     ]);
 
     setState({
       walletAddress: addr,
       balance,
+      contractCredits,
       claimable,
       verified,
       priceUSD,
       usdToNGN,
-      loading: false,
-      refreshing: false,
+      loading:     false,
+      refreshing:  false,
       lastUpdated: new Date(),
     });
   }, []);
 
-  // ── Load on mount ──────────────────────────────────────
-  useEffect(() => {
-    refresh();
-  }, [refresh]);
+  useEffect(() => { refresh(); }, [refresh]);
 
-  // ── Set wallet address ─────────────────────────────────
+  // ── Set / clear wallet ───────────────────────────────────
   const setWallet = useCallback(async (address: string) => {
     const cleaned = address.trim().toLowerCase();
     if (!cleaned.startsWith('0x') || cleaned.length !== 42) {
@@ -129,14 +136,45 @@ export function useGoodDollar() {
     await storage.deleteItem(WALLET_KEY);
     setState((s) => ({
       ...s,
-      walletAddress: null,
-      balance: 0,
-      claimable: 0,
-      verified: false,
+      walletAddress:   null,
+      balance:         0,
+      contractCredits: 0,
+      claimable:       0,
+      verified:        false,
     }));
   }, []);
 
-  // ── Watch for incoming G$ payment to platform wallet ──
+  // ── Contract actions ─────────────────────────────────────
+
+  /** Approve + deposit G$ into the DataGaugeCredits contract */
+  const depositCredits = useCallback(async (gdAmount: number) => {
+    const result = await depositCreditsOnChain(gdAmount);
+    // Refresh after confirmed
+    await refresh(true);
+    return result;
+  }, [refresh]);
+
+  /**
+   * Spend G$ credits from the contract to pay for a data bundle.
+   * Call this BEFORE calling VTPass — the on-chain tx is the payment proof.
+   */
+  const spendCredits = useCallback(
+    async (gdAmount: number, planId: string, phone: string) => {
+      const result = await spendCreditsOnChain(gdAmount, planId, phone);
+      await refresh(true);
+      return result;
+    },
+    [refresh]
+  );
+
+  /** Withdraw unspent G$ credits back to wallet */
+  const withdrawCredits = useCallback(async (gdAmount: number) => {
+    const result = await withdrawCreditsOnChain(gdAmount);
+    await refresh(true);
+    return result;
+  }, [refresh]);
+
+  // ── Watch for incoming G$ (legacy manual-send flow) ──────
   const watchForPayment = useCallback(
     (platformAddress: string, onReceive: (from: string, amount: number) => void) => {
       return watchIncomingG(platformAddress, onReceive);
@@ -144,19 +182,25 @@ export function useGoodDollar() {
     []
   );
 
-  // ── Derived helpers ────────────────────────────────────
+  // ── Derived helpers ──────────────────────────────────────
   const balanceNGN = gToNGN(state.balance, state.priceUSD, state.usdToNGN);
+  const contractCreditsNGN = gToNGN(state.contractCredits, state.priceUSD, state.usdToNGN);
   const toNGN = (g: number) => gToNGN(g, state.priceUSD, state.usdToNGN);
-  const toG = (ngn: number) => ngnToG(ngn, state.priceUSD, state.usdToNGN);
+  const toG   = (ngn: number) => ngnToG(ngn, state.priceUSD, state.usdToNGN);
 
   return {
     ...state,
     balanceNGN,
+    contractCreditsNGN,
+    contractConfigured: CONTRACT_CONFIGURED,
     toNGN,
     toG,
-    refresh: () => refresh(false),
+    refresh:         () => refresh(false),
     setWallet,
     clearWallet,
+    depositCredits,
+    spendCredits,
+    withdrawCredits,
     watchForPayment,
   };
 }

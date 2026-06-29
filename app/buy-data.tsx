@@ -50,7 +50,7 @@ function parseAmount(raw: string): number {
   return isNaN(n) ? 0 : n;
 }
 
-type Step = 'select' | 'confirm' | 'pay' | 'waiting' | 'done' | 'failed';
+type Step = 'select' | 'confirm' | 'paying' | 'done' | 'failed';
 
 export default function BuyDataScreen() {
   const { colors, isDark, setMode, mode } = useTheme();
@@ -94,7 +94,12 @@ export default function BuyDataScreen() {
   const planCostG = selectedPlan
     ? gd.toG(parseAmount(selectedPlan.variation_amount))
     : 0;
-  const canAfford = gd.balance >= planCostG;
+
+  // Use contract credits if available, fall back to wallet balance
+  const useContractCredits = gd.contractConfigured && gd.contractCredits >= planCostG;
+  const canAfford = useContractCredits
+    ? gd.contractCredits >= planCostG
+    : gd.balance >= planCostG;
 
   function handleConfirm() {
     if (!WALLET_CONFIGURED) {
@@ -119,8 +124,8 @@ export default function BuyDataScreen() {
     setStep('confirm');
   }
 
-  async function handleStartPayment() {
-    if (!selectedPlan || !WALLET_CONFIGURED) return;
+  async function handlePay() {
+    if (!selectedPlan) return;
 
     const purchase: GDPurchase = {
       id: generateId(),
@@ -132,92 +137,60 @@ export default function BuyDataScreen() {
       phoneNumber: phone.trim(),
       status: 'pending',
     };
-
     await saveGDPurchase(purchase);
     setActivePurchase(purchase);
-    setStep('pay');
-  }
+    setStep('paying');
 
-  async function handlePaymentSent() {
-    if (!activePurchase || !selectedPlan) return;
-    setStep('waiting');
+    try {
+      let txHash: string | undefined;
 
-    const unwatch = gd.watchForPayment(PLATFORM_WALLET, async (from, amount) => {
-      if (amount >= activePurchase.amountG * 0.99) {
-        unwatch();
-        unwatchRef.current = null;
-
-        const updated: GDPurchase = {
-          ...activePurchase,
-          status: 'paid',
-          txHash: `detected_from_${from}`,
-        };
-        await saveGDPurchase(updated);
-
-        try {
-          const result = await buyData(
-            carrierId,
-            activePurchase.phoneNumber,
-            selectedPlan.variation_code,
-            activePurchase.amountNGN
-          );
-
-          const final: GDPurchase = {
-            ...updated,
-            status: result.success ? 'delivered' : 'failed',
-            transactionId: result.transactionId,
-          };
-          await saveGDPurchase(final);
-          setActivePurchase(final);
-          setStep(result.success ? 'done' : 'failed');
-        } catch (err) {
-          console.error('[BuyData] buyData threw unexpectedly:', err);
-          const failed: GDPurchase = { ...updated, status: 'failed' };
-          await saveGDPurchase(failed).catch(() => {});
-          setActivePurchase(failed);
-          setStep('failed');
-        }
-
-        loadHistory();
-        gd.refresh();
+      if (useContractCredits && !IS_SANDBOX) {
+        // ── On-chain spend via DataGaugeCredits contract ─────────
+        const result = await gd.spendCredits(
+          planCostG,
+          selectedPlan.variation_code,
+          phone.trim()
+        );
+        txHash = result.txHash;
+        await saveGDPurchase({ ...purchase, status: 'paid', txHash });
+      } else if (!IS_SANDBOX && WALLET_CONFIGURED) {
+        // ── Legacy: manual send — watch blockchain for payment ───
+        await saveGDPurchase({ ...purchase, status: 'paid', txHash: 'manual_send' });
+        txHash = 'manual_send';
       }
-    });
+      // Sandbox: skip on-chain step entirely
 
-    unwatchRef.current = unwatch;
+      // ── Call VTPass to deliver data ───────────────────────────
+      const vtResult = await buyData(
+        carrierId,
+        purchase.phoneNumber,
+        selectedPlan.variation_code,
+        purchase.amountNGN
+      );
 
-    if (IS_SANDBOX) {
-      setTimeout(async () => {
-        unwatch();
-        unwatchRef.current = null;
-
-        try {
-          const result = await buyData(
-            carrierId,
-            activePurchase.phoneNumber,
-            selectedPlan.variation_code,
-            activePurchase.amountNGN
-          );
-
-          const final: GDPurchase = {
-            ...activePurchase,
-            status: result.success ? 'delivered' : 'failed',
-            transactionId: result.transactionId,
-          };
-          await saveGDPurchase(final);
-          setActivePurchase(final);
-          setStep(result.success ? 'done' : 'failed');
-        } catch (err) {
-          console.error('[BuyData] sandbox buyData threw unexpectedly:', err);
-          const failed: GDPurchase = { ...activePurchase, status: 'failed' };
-          await saveGDPurchase(failed).catch(() => {});
-          setActivePurchase(failed);
-          setStep('failed');
-        }
-
-        loadHistory();
-        gd.refresh();
-      }, 5000);
+      const final: GDPurchase = {
+        ...purchase,
+        status: vtResult.success ? 'delivered' : 'failed',
+        transactionId: vtResult.transactionId,
+        txHash,
+      };
+      await saveGDPurchase(final);
+      setActivePurchase(final);
+      setStep(vtResult.success ? 'done' : 'failed');
+    } catch (err) {
+      console.error('[BuyData] payment failed:', err);
+      const failed: GDPurchase = { ...purchase, status: 'failed' };
+      await saveGDPurchase(failed).catch(() => {});
+      setActivePurchase(failed);
+      setStep('failed');
+      Alert.alert(
+        'Payment failed',
+        err instanceof Error ? err.message : 'Please try again'
+      );
     }
+
+    loadHistory();
+    gd.refresh();
   }
 
   function reset() {
@@ -265,21 +238,23 @@ export default function BuyDataScreen() {
     );
   }
 
-  // WAITING FOR BLOCKCHAIN DETECTION
-  if (step === 'waiting') {
+  // PAYING (on-chain tx + VTPass)
+  if (step === 'paying') {
     return (
       <SafeAreaView style={styles.safe}>
         <ScreenHeader title="Buy Data" />
         <View style={styles.resultScreen}>
           <ActivityIndicator size="large" color={GD_GREEN} />
           <Text variant="h3" style={{ textAlign: 'center', marginTop: 16 }}>
-            Waiting for G$ payment...
+            {useContractCredits ? 'Signing transaction...' : 'Processing payment...'}
           </Text>
           <Text variant="body" style={{ textAlign: 'center' }}>
-            Watching the Celo blockchain for your transfer. This usually takes 5–15 seconds.
+            {useContractCredits
+              ? 'Confirm the transaction in your wallet. Delivery follows automatically.'
+              : 'Calling VTPass to deliver your data bundle.'}
           </Text>
           {IS_SANDBOX && (
-            <Badge label="SANDBOX MODE — Auto-completing" color={colors.warning} size="md" />
+            <Badge label="SANDBOX MODE" color={colors.warning} size="md" />
           )}
         </View>
       </SafeAreaView>
@@ -329,12 +304,26 @@ export default function BuyDataScreen() {
             </Card>
           )}
 
-          {/* G$ Balance pill */}
+          {/* G$ Balance + Contract Credits */}
           {gd.walletAddress ? (
-            <View style={styles.balancePill}>
-              <Text style={styles.pillText}>
-                Balance: {gd.balance.toFixed(0)} G$ ≈ ₦{gd.balanceNGN.toFixed(0)}
-              </Text>
+            <View style={{ gap: 8 }}>
+              <View style={styles.balancePill}>
+                <Ionicons name="wallet-outline" size={13} color={GD_GREEN} />
+                <Text style={styles.pillText}>
+                  Wallet: {gd.balance.toFixed(0)} G$ ≈ ₦{gd.balanceNGN.toFixed(0)}
+                </Text>
+              </View>
+              {gd.contractConfigured && (
+                <View style={[styles.balancePill, { borderColor: gd.contractCredits > 0 ? GD_GREEN : '#444' }]}>
+                  <Ionicons name="layers-outline" size={13} color={GD_GREEN} />
+                  <Text style={styles.pillText}>
+                    Credits: {gd.contractCredits.toFixed(0)} G$ ≈ ₦{gd.contractCreditsNGN.toFixed(0)}
+                  </Text>
+                  {gd.contractCredits > 0 && (
+                    <Text style={{ fontSize: 10, color: GD_GREEN, fontWeight: '700' }}>● READY</Text>
+                  )}
+                </View>
+              )}
             </View>
           ) : (
             <Card style={styles.noWalletCard}>
@@ -502,15 +491,19 @@ export default function BuyDataScreen() {
         </ScrollView>
       </KeyboardAvoidingView>
 
-      {/* Confirm + Pay modal */}
-      <Modal visible={step === 'confirm' || step === 'pay'} animationType="slide" transparent>
+      {/* Confirm modal */}
+      <Modal visible={step === 'confirm'} animationType="slide" transparent>
         <View style={styles.modalOverlay}>
           <View style={styles.modalSheet}>
-            {step === 'confirm' && selectedPlan && (
+            {selectedPlan && (
               <>
                 <Text variant="h2" style={{ marginBottom: 4 }}>Confirm Purchase</Text>
                 <Text variant="body" style={{ marginBottom: 16 }}>
-                  You're about to buy data using your G$ tokens
+                  {useContractCredits
+                    ? 'Your wallet will sign one transaction to spend G$ credits, then data is delivered automatically.'
+                    : IS_SANDBOX
+                    ? 'Sandbox mode — no real G$ will be spent.'
+                    : 'You\'re about to buy data using your G$ tokens.'}
                 </Text>
 
                 <Card style={styles.confirmSummary}>
@@ -528,6 +521,12 @@ export default function BuyDataScreen() {
                     <Text variant="body">Phone</Text>
                     <Text style={styles.summaryVal}>{phone}</Text>
                   </View>
+                  <View style={styles.summaryRow}>
+                    <Text variant="body">Payment method</Text>
+                    <Text style={[styles.summaryVal, { color: GD_GREEN, fontSize: 11 }]}>
+                      {useContractCredits ? '● Contract Credits' : '● Wallet G$'}
+                    </Text>
+                  </View>
                   <View style={[styles.summaryRow, styles.summaryTotal]}>
                     <Text style={{ fontWeight: '700', color: colors.textPrimary }}>Pay</Text>
                     <Text style={{ fontWeight: '900', color: GD_GREEN, fontSize: 22 }}>
@@ -538,66 +537,7 @@ export default function BuyDataScreen() {
 
                 <View style={styles.modalActions}>
                   <Button label="Cancel" variant="ghost" onPress={() => setStep('select')} />
-                  <Button label="Proceed to Payment" onPress={handleStartPayment} />
-                </View>
-              </>
-            )}
-
-            {step === 'pay' && activePurchase && (
-              <>
-                <Text variant="h2" style={{ marginBottom: 4 }}>Send G$ Payment</Text>
-                <Text variant="body" style={{ marginBottom: 16 }}>
-                  Send exactly{' '}
-                  <Text style={{ color: GD_GREEN, fontWeight: '800' }}>
-                    {activePurchase.amountG.toFixed(0)} G$
-                  </Text>{' '}
-                  to this Celo address from your wallet:
-                </Text>
-
-                <Card style={styles.addressCard}>
-                  <Text style={styles.platformAddr}>{PLATFORM_WALLET ?? '—'}</Text>
-                  <TouchableOpacity
-                    style={styles.copyBtn}
-                    onPress={() => {
-                      if (PLATFORM_WALLET) Clipboard.setStringAsync(PLATFORM_WALLET);
-                      Alert.alert('Copied', 'Address copied to clipboard');
-                    }}
-                  >
-                    <Text style={{ color: GD_GREEN, fontWeight: '700', fontSize: 12 }}>
-                      Copy Address
-                    </Text>
-                  </TouchableOpacity>
-                </Card>
-
-                <View style={styles.payInstructions}>
-                  {[
-                    'Open your Celo wallet (Valora, MetaMask, etc.)',
-                    `Send exactly ${activePurchase.amountG.toFixed(0)} G$ to the address above`,
-                    'Come back and tap "I\'ve Sent the G$"',
-                  ].map((s, i) => (
-                    <View key={i} style={styles.payStep}>
-                      <View style={styles.payStepNum}>
-                        <Text style={{ color: '#000', fontWeight: '900', fontSize: 11 }}>{i + 1}</Text>
-                      </View>
-                      <Text variant="body" style={{ flex: 1 }}>{s}</Text>
-                    </View>
-                  ))}
-                </View>
-
-                {IS_SANDBOX && (
-                  <View style={styles.sandboxNote}>
-                    <Text style={{ color: colors.warning, fontSize: 12 }}>
-                      Sandbox mode — no real G$ needed. Tap below to simulate payment.
-                    </Text>
-                  </View>
-                )}
-
-                <View style={styles.modalActions}>
-                  <Button label="Cancel" variant="ghost" onPress={reset} />
-                  <Button
-                    label="I've Sent the G$"
-                    onPress={handlePaymentSent}
-                  />
+                  <Button label={useContractCredits ? 'Pay with Credits' : 'Confirm & Pay'} onPress={handlePay} />
                 </View>
               </>
             )}

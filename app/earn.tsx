@@ -9,6 +9,7 @@ import {
   KeyboardAvoidingView,
   Platform,
   Modal,
+  ActivityIndicator,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
@@ -46,6 +47,11 @@ export default function EarnScreen() {
   const [addressInput, setAddressInput] = useState('');
   const [saving, setSaving] = useState(false);
   const [isConnecting, setIsConnecting] = useState(false);
+
+  // G$ Credits (on-chain contract)
+  const [depositAmount, setDepositAmount] = useState('');
+  const [depositLoading, setDepositLoading] = useState(false);
+  const [withdrawLoading, setWithdrawLoading] = useState(false);
 
   const openInBrowser = useCallback(async (url: string) => {
     await WebBrowser.openBrowserAsync(url, {
@@ -96,6 +102,33 @@ export default function EarnScreen() {
 
   const balanceNGN = gd.balanceNGN;
   const rate1000G = gd.toNGN(1000).toFixed(0);
+
+  async function handleDeposit() {
+    const amount = parseFloat(depositAmount);
+    if (!amount || amount <= 0) { Alert.alert('Invalid amount', 'Enter a G$ amount to deposit'); return; }
+    if (amount > gd.balance) { Alert.alert('Insufficient G$', `You only have ${gd.balance.toFixed(0)} G$ in your wallet`); return; }
+    setDepositLoading(true);
+    try {
+      await gd.depositCredits(amount);
+      setDepositAmount('');
+      Alert.alert('Deposited!', `${amount.toFixed(0)} G$ added to your DataGauge credits`);
+    } catch (e) {
+      Alert.alert('Deposit failed', e instanceof Error ? e.message : 'Try again');
+    }
+    setDepositLoading(false);
+  }
+
+  async function handleWithdraw() {
+    if (gd.contractCredits <= 0) { Alert.alert('No credits', 'You have no G$ credits to withdraw'); return; }
+    setWithdrawLoading(true);
+    try {
+      await gd.withdrawCredits(gd.contractCredits);
+      Alert.alert('Withdrawn!', `${gd.contractCredits.toFixed(0)} G$ returned to your wallet`);
+    } catch (e) {
+      Alert.alert('Withdraw failed', e instanceof Error ? e.message : 'Try again');
+    }
+    setWithdrawLoading(false);
+  }
 
   return (
     <SafeAreaView style={styles.safe}>
@@ -212,6 +245,57 @@ export default function EarnScreen() {
                 </TouchableOpacity>
               </View>
             </Card>
+
+            {/* ── G$ Credits (on-chain contract) ── */}
+            {gd.contractConfigured && (
+              <Card glow={gd.contractCredits > 0 ? GD_GREEN : colors.border}>
+                <View style={styles.creditsHeader}>
+                  <View>
+                    <Text variant="caption" color={GD_GREEN}>DataGauge Credits</Text>
+                    <Text style={styles.creditsBalance}>
+                      {gd.contractCredits.toFixed(0)} G$
+                    </Text>
+                    <Text style={styles.creditsNGN}>
+                      ≈ ₦{gd.contractCreditsNGN.toFixed(0)} · ready to spend on data
+                    </Text>
+                  </View>
+                  {gd.contractCredits > 0 && (
+                    <TouchableOpacity
+                      style={styles.withdrawBtn}
+                      onPress={handleWithdraw}
+                      disabled={withdrawLoading}
+                    >
+                      {withdrawLoading
+                        ? <ActivityIndicator size="small" color={colors.textMuted} />
+                        : <Text style={{ color: colors.textMuted, fontSize: 11 }}>Withdraw all →</Text>
+                      }
+                    </TouchableOpacity>
+                  )}
+                </View>
+
+                <View style={styles.depositRow}>
+                  <TextInput
+                    style={[styles.depositInput, { color: colors.textPrimary, borderColor: colors.border }]}
+                    placeholder="Amount of G$ to deposit"
+                    placeholderTextColor={colors.textMuted}
+                    keyboardType="numeric"
+                    value={depositAmount}
+                    onChangeText={setDepositAmount}
+                  />
+                  <Button
+                    label={depositLoading ? '...' : 'Deposit'}
+                    size="sm"
+                    onPress={handleDeposit}
+                    loading={depositLoading}
+                    disabled={depositLoading || !depositAmount}
+                    style={{ minWidth: 80 }}
+                  />
+                </View>
+                <Text variant="body" style={{ marginTop: 4 }}>
+                  Deposited G$ can be spent on data bundles — one tap, no manual transfers.
+                </Text>
+              </Card>
+            )}
 
             {/* Verification status */}
             <Card glow={gd.verified ? GD_GREEN : colors.warning}>
@@ -395,6 +479,12 @@ const getStyles = (colors: ThemeColors) => StyleSheet.create({
   rateLabel: { fontSize: 10, color: colors.textMuted },
   addressRow: { flexDirection: 'row', alignItems: 'center', gap: 8, marginTop: 10, paddingTop: 10, borderTopWidth: 1, borderTopColor: colors.border },
   addressText: { flex: 1, fontSize: 11, color: colors.textMuted, fontFamily: 'monospace' },
+  creditsHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 12 },
+  creditsBalance: { fontSize: 26, fontWeight: '900', color: GD_GREEN },
+  creditsNGN: { fontSize: 11, color: colors.textMuted, marginTop: 2 },
+  withdrawBtn: { paddingHorizontal: 10, paddingVertical: 4, borderRadius: 8, borderWidth: 1, borderColor: colors.border },
+  depositRow: { flexDirection: 'row', gap: 8, alignItems: 'center', marginTop: 4 },
+  depositInput: { flex: 1, backgroundColor: colors.surface, borderRadius: 10, paddingHorizontal: 12, paddingVertical: 10, fontSize: 14, borderWidth: 1 },
   verifyRow: { flexDirection: 'row', gap: 10 },
   verifyTitleRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
   claimRow: { flexDirection: 'row', alignItems: 'center', gap: 12 },
