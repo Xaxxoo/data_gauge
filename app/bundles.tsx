@@ -394,7 +394,7 @@ export default function BundlesScreen() {
 
 const getStyles = (colors: ThemeColors) => StyleSheet.create({
   safe: { flex: 1, backgroundColor: colors.bg },
-  content: { padding: 16, gap: 16, maxWidth: 560, width: '100%', alignSelf: 'center' as const },
+  content: { padding: 16, gap: 16 },
   titleRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
   empty: { alignItems: 'center', gap: 8, paddingVertical: 32 },
   bundleCard: { gap: 12 },

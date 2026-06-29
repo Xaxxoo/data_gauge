@@ -610,7 +610,7 @@ export default function BuyDataScreen() {
 
 const getStyles = (colors: ThemeColors) => StyleSheet.create({
   safe: { flex: 1, backgroundColor: colors.bg },
-  content: { padding: 16, gap: 16, maxWidth: 560, width: '100%', alignSelf: 'center' as const },
+  content: { padding: 16, gap: 16 },
   resultScreen: { flex: 1, alignItems: 'center', justifyContent: 'center', padding: 24, gap: 16 },
   resultCard: { width: '100%' },
   txId: { fontSize: 10, color: colors.textMuted, marginTop: 4, fontFamily: 'monospace' },

@@ -1,7 +1,7 @@
 import React from 'react';
 import { Tabs } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
-import { Platform } from 'react-native';
+import { Platform, View, useWindowDimensions } from 'react-native';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
@@ -12,6 +12,8 @@ const GD_GREEN = '#10B981';
 
 function RootLayoutNav() {
   const { colors, isDark } = useTheme();
+  const { width } = useWindowDimensions();
+  const isDesktop = Platform.OS === 'web' && width >= 640;
 
   // Initialize background tracking
   useBackgroundTracker();
@@ -20,76 +22,80 @@ function RootLayoutNav() {
     <GestureHandlerRootView style={{ flex: 1, backgroundColor: colors.bg }}>
       <SafeAreaProvider>
         <StatusBar style={isDark ? 'light' : 'dark'} backgroundColor={colors.bg} />
-        <Tabs
-          screenOptions={{
-            headerShown: false,
-            tabBarStyle: {
-              backgroundColor: colors.surface,
-              borderTopWidth: 0,
-              elevation: 0,
-              shadowOpacity: 0,
-              height: Platform.OS === 'web' ? 64 : 84,
-              paddingBottom: Platform.OS === 'web' ? 8 : 28,
-              paddingTop: 8,
-            },
-            tabBarActiveTintColor: colors.accent,
-            tabBarInactiveTintColor: colors.textMuted,
-            tabBarLabelStyle: {
-              fontSize: 11,
-              fontWeight: '600',
-              marginTop: 2,
-            },
-            tabBarIconStyle: {
-              marginBottom: -2,
-            },
-          }}
-        >
-          <Tabs.Screen
-            name="index"
-            options={{
-              title: 'Home',
-              tabBarIcon: ({ color, size }) => (
-                <Ionicons name="home-outline" size={(size ?? 22) - 2} color={color} />
-              ),
-            }}
-          />
-          <Tabs.Screen
-            name="earn"
-            options={{
-              title: 'Earn G$',
-              tabBarActiveTintColor: GD_GREEN,
-              tabBarIcon: ({ color, size }) => (
-                <Ionicons name="wallet-outline" size={(size ?? 22) - 2} color={color} />
-              ),
-            }}
-          />
-          <Tabs.Screen
-            name="history"
-            options={{
-              title: 'History',
-              tabBarIcon: ({ color, size }) => (
-                <Ionicons name="bar-chart-outline" size={(size ?? 22) - 2} color={color} />
-              ),
-            }}
-          />
-          <Tabs.Screen
-            name="settings"
-            options={{
-              title: 'Settings',
-              tabBarIcon: ({ color, size }) => (
-                <Ionicons name="settings-outline" size={(size ?? 22) - 2} color={color} />
-              ),
-            }}
-          />
+        <View style={{ flex: 1, alignItems: isDesktop ? 'center' : 'stretch' }}>
+          <View style={{ flex: 1, width: '100%', maxWidth: isDesktop ? 600 : undefined }}>
+            <Tabs
+              screenOptions={{
+                headerShown: false,
+                tabBarStyle: {
+                  backgroundColor: colors.surface,
+                  borderTopWidth: 0,
+                  elevation: 0,
+                  shadowOpacity: 0,
+                  height: Platform.OS === 'web' ? 64 : 84,
+                  paddingBottom: Platform.OS === 'web' ? 8 : 28,
+                  paddingTop: 8,
+                },
+                tabBarActiveTintColor: colors.accent,
+                tabBarInactiveTintColor: colors.textMuted,
+                tabBarLabelStyle: {
+                  fontSize: 11,
+                  fontWeight: '600',
+                  marginTop: 2,
+                },
+                tabBarIconStyle: {
+                  marginBottom: -2,
+                },
+              }}
+            >
+              <Tabs.Screen
+                name="index"
+                options={{
+                  title: 'Home',
+                  tabBarIcon: ({ color, size }) => (
+                    <Ionicons name="home-outline" size={(size ?? 22) - 2} color={color} />
+                  ),
+                }}
+              />
+              <Tabs.Screen
+                name="earn"
+                options={{
+                  title: 'Earn G$',
+                  tabBarActiveTintColor: GD_GREEN,
+                  tabBarIcon: ({ color, size }) => (
+                    <Ionicons name="wallet-outline" size={(size ?? 22) - 2} color={color} />
+                  ),
+                }}
+              />
+              <Tabs.Screen
+                name="history"
+                options={{
+                  title: 'History',
+                  tabBarIcon: ({ color, size }) => (
+                    <Ionicons name="bar-chart-outline" size={(size ?? 22) - 2} color={color} />
+                  ),
+                }}
+              />
+              <Tabs.Screen
+                name="settings"
+                options={{
+                  title: 'Settings',
+                  tabBarIcon: ({ color, size }) => (
+                    <Ionicons name="settings-outline" size={(size ?? 22) - 2} color={color} />
+                  ),
+                }}
+              />
 
-          {/* Hidden screens — accessible via navigation but not in tab bar */}
-          <Tabs.Screen name="bundles" options={{ href: null }} />
-          <Tabs.Screen name="buy-data" options={{ href: null }} />
-          <Tabs.Screen name="audit" options={{ href: null }} />
-          <Tabs.Screen name="speed-test" options={{ href: null }} />
-          <Tabs.Screen name="ussd-check" options={{ href: null }} />
-          <Tabs.Screen name="tips" options={{ href: null }} />
-        </Tabs>
+              {/* Hidden screens — accessible via navigation but not in tab bar */}
+              <Tabs.Screen name="bundles" options={{ href: null }} />
+              <Tabs.Screen name="buy-data" options={{ href: null }} />
+              <Tabs.Screen name="audit" options={{ href: null }} />
+              <Tabs.Screen name="speed-test" options={{ href: null }} />
+              <Tabs.Screen name="ussd-check" options={{ href: null }} />
+              <Tabs.Screen name="tips" options={{ href: null }} />
+            </Tabs>
+          </View>
+        </View>
       </SafeAreaProvider>
     </GestureHandlerRootView>
   );

@@ -388,7 +388,7 @@ export default function Dashboard() {
 const getStyles = (colors: ThemeColors) => StyleSheet.create({
   safe: { flex: 1, backgroundColor: colors.bg },
   scroll: { flex: 1 },
-  content: { padding: 16, paddingBottom: 32, gap: 16, maxWidth: 560, width: '100%', alignSelf: 'center' as const },
+  content: { padding: 16, paddingBottom: 32, gap: 16 },
   header: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 4 },
   networkBadge: { flexDirection: 'row', alignItems: 'center', gap: 6, backgroundColor: colors.surface, paddingHorizontal: 10, paddingVertical: 6, borderRadius: 20 },
   dot: { width: 8, height: 8, borderRadius: 4 },

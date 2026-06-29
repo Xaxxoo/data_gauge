@@ -290,7 +290,7 @@ export default function SettingsScreen() {
 
 const getStyles = (colors: ThemeColors) => StyleSheet.create({
   safe: { flex: 1, backgroundColor: colors.bg },
-  content: { padding: 16, gap: 16, maxWidth: 560, width: '100%', alignSelf: 'center' as const },
+  content: { padding: 16, gap: 16 },
   carrierGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 10 },
   carrierCard: { paddingHorizontal: 14, paddingVertical: 10, borderRadius: 12, borderWidth: 1, borderColor: colors.border, flexDirection: 'row', alignItems: 'center', gap: 8 },
   carrierDot: { width: 10, height: 10, borderRadius: 5 },

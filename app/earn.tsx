@@ -377,7 +377,7 @@ export default function EarnScreen() {
 
 const getStyles = (colors: ThemeColors) => StyleSheet.create({
   safe: { flex: 1, backgroundColor: colors.bg },
-  content: { padding: 16, gap: 16, maxWidth: 560, width: '100%', alignSelf: 'center' as const },
+  content: { padding: 16, gap: 16 },
   introCard: {},
   introHeader: { flexDirection: 'row', alignItems: 'center', gap: 12 },
   gdLogo: { width: 48, height: 48, borderRadius: 24, alignItems: 'center', justifyContent: 'center' },

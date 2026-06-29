@@ -207,7 +207,7 @@ export default function UssdCheckScreen() {
 
 const getStyles = (colors: ThemeColors) => StyleSheet.create({
   safe: { flex: 1, backgroundColor: colors.bg },
-  content: { padding: 16, gap: 16, maxWidth: 560, width: '100%', alignSelf: 'center' as const },
+  content: { padding: 16, gap: 16 },
   carrierRow: { flexDirection: 'row', alignItems: 'center', gap: 12 },
   carrierDot: { width: 14, height: 14, borderRadius: 7 },
   iosNote: { borderColor: colors.warning + '44', borderWidth: 1, backgroundColor: colors.warning + '08' },

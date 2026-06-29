@@ -290,7 +290,7 @@ export default function HistoryScreen() {
 
 const getStyles = (colors: ThemeColors) => StyleSheet.create({
   safe: { flex: 1, backgroundColor: colors.bg },
-  content: { padding: 16, gap: 16, maxWidth: 560, width: '100%', alignSelf: 'center' as const },
+  content: { padding: 16, gap: 16 },
   header: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start' },
   exportBtn: { padding: 10, backgroundColor: colors.surface, borderRadius: 12 },
   exportMenu: { gap: 4 },
