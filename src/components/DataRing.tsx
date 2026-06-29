@@ -9,6 +9,7 @@ interface Props {
   totalMB: number;
   size?: number;
   color?: string;
+  trackColor?: string;
   label?: string;
   sublabel?: string;
 }
@@ -18,6 +19,7 @@ export function DataRing({
   totalMB,
   size = 160,
   color = C.accent,
+  trackColor = C.border,
   label,
   sublabel,
 }: Props) {
@@ -38,7 +40,7 @@ export function DataRing({
           cx={size / 2}
           cy={size / 2}
           r={r}
-          stroke={C.border}
+          stroke={trackColor}
           strokeWidth={strokeWidth}
           fill="none"
         />

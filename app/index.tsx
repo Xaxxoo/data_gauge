@@ -113,7 +113,7 @@ export default function Dashboard() {
         {!tracker.isTracking ? (
           <TouchableOpacity style={styles.startBtn} onPress={handleStartStop} activeOpacity={0.8}>
             <View style={styles.startCircle}>
-              <Ionicons name="play-outline" size={32} color="#FFF" />
+              <Ionicons name="play-outline" size={32} color={colors.bg} />
             </View>
             <Text style={styles.startLabel}>Start Tracking</Text>
             <Text style={styles.startSub}>
@@ -224,11 +224,11 @@ export default function Dashboard() {
             ) : (
               <View style={styles.gdRow}>
                 <Text style={styles.gdLogoText2}>G$</Text>
-                <View style={{ flex: 1 }}>
-                  <Text style={{ color: GD_GREEN, fontWeight: '700', fontSize: 13 }}>
+                <View style={{ flex: 1, minWidth: 0 }}>
+                  <Text style={{ color: GD_GREEN, fontWeight: '700', fontSize: 13 }} numberOfLines={1}>
                     Earn free G$ → buy data
                   </Text>
-                  <Text variant="body">Connect wallet in Earn tab to claim daily UBI</Text>
+                  <Text variant="body" numberOfLines={2}>Connect wallet in Earn tab to claim daily UBI</Text>
                 </View>
                 <Ionicons name="arrow-forward-outline" size={14} color={GD_GREEN} />
               </View>
@@ -245,6 +245,7 @@ export default function Dashboard() {
                 totalMB={activeBundle.totalMB}
                 size={150}
                 color={colors.accent}
+                trackColor={colors.border}
                 sublabel={`of ${formatBytes(activeBundle.totalMB * 1024 * 1024)}`}
               />
               <View style={styles.bundleInfo}>
@@ -387,7 +388,7 @@ export default function Dashboard() {
 const getStyles = (colors: ThemeColors) => StyleSheet.create({
   safe: { flex: 1, backgroundColor: colors.bg },
   scroll: { flex: 1 },
-  content: { padding: 16, paddingBottom: 32, gap: 16, maxWidth: 480, width: '100%', alignSelf: 'center' as const },
+  content: { padding: 16, paddingBottom: 32, gap: 16, maxWidth: 560, width: '100%', alignSelf: 'center' as const },
   header: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 4 },
   networkBadge: { flexDirection: 'row', alignItems: 'center', gap: 6, backgroundColor: colors.surface, paddingHorizontal: 10, paddingVertical: 6, borderRadius: 20 },
   dot: { width: 8, height: 8, borderRadius: 4 },
