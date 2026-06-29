@@ -47,6 +47,7 @@ export default function EarnScreen() {
   const [addressInput, setAddressInput] = useState('');
   const [saving, setSaving] = useState(false);
   const [isConnecting, setIsConnecting] = useState(false);
+  const [isClaiming, setIsClaiming] = useState(false);
 
   // G$ Credits (on-chain contract)
   const [depositAmount, setDepositAmount] = useState('');
@@ -116,6 +117,30 @@ export default function EarnScreen() {
       Alert.alert('Deposit failed', e instanceof Error ? e.message : 'Try again');
     }
     setDepositLoading(false);
+  }
+
+  async function handleClaimUBI() {
+    // If an injected wallet is available, claim on-chain without leaving the app
+    if (typeof window !== 'undefined' && window.ethereum) {
+      setIsClaiming(true);
+      try {
+        await gd.claimUBI();
+        Alert.alert('Claimed!', 'Your daily G$ UBI has been added to your wallet.');
+      } catch (e) {
+        const msg = e instanceof Error ? e.message : 'Claim failed';
+        // Fall back to browser if the contract call fails (e.g. already claimed)
+        if (msg.toLowerCase().includes('already') || msg.toLowerCase().includes('entitlement')) {
+          Alert.alert('Already claimed', 'You have already claimed your G$ for today. Come back tomorrow!');
+        } else {
+          Alert.alert('Claim failed', msg);
+        }
+      } finally {
+        setIsClaiming(false);
+      }
+    } else {
+      // No injected wallet — open GoodDollar in browser
+      await openInBrowser(GD_URLS.claim);
+    }
   }
 
   async function handleWithdraw() {
@@ -342,11 +367,16 @@ export default function EarnScreen() {
                   )}
                 </View>
                 <Button
-                  label={gd.claimable > 0 ? 'Claim Now' : 'Come Back Tomorrow'}
+                  label={
+                    isClaiming ? 'Claiming...'
+                    : gd.claimable > 0 ? 'Claim Now'
+                    : 'Come Back Tomorrow'
+                  }
                   size="sm"
                   variant={gd.claimable > 0 ? 'primary' : 'secondary'}
-                  disabled={!gd.verified || gd.claimable === 0}
-                  onPress={() => openInBrowser(GD_URLS.claim)}
+                  disabled={!gd.verified || gd.claimable === 0 || isClaiming}
+                  loading={isClaiming}
+                  onPress={handleClaimUBI}
                 />
               </View>
               {!gd.verified && (

@@ -87,6 +87,28 @@ contract DataGaugeCredits {
         emit Spent(msg.sender, amount, planId, phoneHash);
     }
 
+    // ── Direct spend (no pre-deposit needed) ─────────────────
+
+    /**
+     * @notice Pay for data directly from your wallet in one step.
+     *         User must first approve this contract for `amount` on the G$ token.
+     *         Skips the deposit/balance accounting — G$ goes straight to the agent.
+     *
+     * @param amount    G$ amount in wei
+     * @param planId    VTPass variation_code (e.g. "mtn-smb1000")
+     * @param phoneHash keccak256 of the recipient phone number (privacy)
+     */
+    function directSpend(
+        uint256 amount,
+        string calldata planId,
+        bytes32 phoneHash
+    ) external {
+        if (amount == 0) revert ZeroAmount();
+        if (!GD_TOKEN.transferFrom(msg.sender, agentWallet, amount))
+            revert TransferFailed();
+        emit Spent(msg.sender, amount, planId, phoneHash);
+    }
+
     // ── Withdraw ─────────────────────────────────────────────
 
     /**

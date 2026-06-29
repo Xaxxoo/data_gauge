@@ -14,6 +14,8 @@ import {
   depositCreditsOnChain,
   spendCreditsOnChain,
   withdrawCreditsOnChain,
+  directSpendOnChain,
+  claimUBIOnChain,
   CONTRACT_CONFIGURED,
 } from '../lib/gooddollar';
 
@@ -174,6 +176,29 @@ export function useGoodDollar() {
     return result;
   }, [refresh]);
 
+  /**
+   * Pay for data directly from wallet G$ — no pre-deposit needed.
+   * Approve (if needed) + directSpend in two wallet confirmations.
+   */
+  const directSpend = useCallback(
+    async (gdAmount: number, planId: string, phone: string) => {
+      const result = await directSpendOnChain(gdAmount, planId, phone);
+      await refresh(true);
+      return result;
+    },
+    [refresh]
+  );
+
+  /**
+   * Claim daily UBI G$ in-app via injected Web3 wallet.
+   * Throws if no wallet is connected or the user has nothing to claim.
+   */
+  const claimUBI = useCallback(async () => {
+    const result = await claimUBIOnChain();
+    await refresh(true);
+    return result;
+  }, [refresh]);
+
   // ── Watch for incoming G$ (legacy manual-send flow) ──────
   const watchForPayment = useCallback(
     (platformAddress: string, onReceive: (from: string, amount: number) => void) => {
@@ -201,6 +226,8 @@ export function useGoodDollar() {
     depositCredits,
     spendCredits,
     withdrawCredits,
+    directSpend,
+    claimUBI,
     watchForPayment,
   };
 }

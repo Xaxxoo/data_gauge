@@ -86,6 +86,13 @@ const UBI_ABI = [
     outputs: [{ type: 'uint256' }],
     stateMutability: 'view' as const,
   },
+  {
+    name: 'claim',
+    type: 'function' as const,
+    inputs: [],
+    outputs: [{ type: 'bool' }],
+    stateMutability: 'nonpayable' as const,
+  },
 ] as const;
 
 const CREDITS_ABI = [
@@ -128,6 +135,17 @@ const CREDITS_ABI = [
     name: 'withdraw',
     type: 'function' as const,
     inputs: [{ name: 'amount', type: 'uint256' }],
+    outputs: [],
+    stateMutability: 'nonpayable' as const,
+  },
+  {
+    name: 'directSpend',
+    type: 'function' as const,
+    inputs: [
+      { name: 'amount',    type: 'uint256' },
+      { name: 'planId',    type: 'string'  },
+      { name: 'phoneHash', type: 'bytes32' },
+    ],
     outputs: [],
     stateMutability: 'nonpayable' as const,
   },
@@ -298,6 +316,73 @@ export async function withdrawCreditsOnChain(
     abi: CREDITS_ABI,
     functionName: 'withdraw',
     args: [amountWei],
+    account: userAddress,
+  });
+  await publicClient.waitForTransactionReceipt({ hash: txHash });
+
+  return { txHash };
+}
+
+/**
+ * Pay for data directly from the user's wallet — no pre-deposit needed.
+ * Approve G$ for `amount` if needed, then call directSpend().
+ */
+export async function directSpendOnChain(
+  gdAmount: number,
+  planId: string,
+  phone: string
+): Promise<{ txHash: `0x${string}` }> {
+  if (!CONTRACT_CONFIGURED) throw new Error('Credits contract not configured.');
+
+  const walletClient = getWalletClient();
+  const [userAddress] = await walletClient.requestAddresses();
+  const amountWei = parseUnits(gdAmount.toFixed(18), G_DECIMALS);
+  const phoneHash  = keccak256(toHex(phone)) as `0x${string}`;
+
+  // Approve if needed
+  const allowance = await publicClient.readContract({
+    address: G_TOKEN,
+    abi: ERC20_ABI,
+    functionName: 'allowance',
+    args: [userAddress, CREDITS_CONTRACT],
+  }) as bigint;
+
+  if (allowance < amountWei) {
+    const approveTx = await walletClient.writeContract({
+      address: G_TOKEN,
+      abi: ERC20_ABI,
+      functionName: 'approve',
+      args: [CREDITS_CONTRACT, amountWei],
+      account: userAddress,
+    });
+    await publicClient.waitForTransactionReceipt({ hash: approveTx });
+  }
+
+  const txHash = await walletClient.writeContract({
+    address: CREDITS_CONTRACT,
+    abi: CREDITS_ABI,
+    functionName: 'directSpend',
+    args: [amountWei, planId, phoneHash],
+    account: userAddress,
+  });
+  await publicClient.waitForTransactionReceipt({ hash: txHash });
+
+  return { txHash };
+}
+
+/**
+ * Claim daily UBI G$ in-app.
+ * Requires an injected Web3 wallet (MetaMask, MiniPay, Valora web).
+ */
+export async function claimUBIOnChain(): Promise<{ txHash: `0x${string}` }> {
+  const walletClient = getWalletClient();
+  const [userAddress] = await walletClient.requestAddresses();
+
+  const txHash = await walletClient.writeContract({
+    address: UBI_SCHEME,
+    abi: UBI_ABI,
+    functionName: 'claim',
+    args: [],
     account: userAddress,
   });
   await publicClient.waitForTransactionReceipt({ hash: txHash });

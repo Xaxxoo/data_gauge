@@ -95,11 +95,12 @@ export default function BuyDataScreen() {
     ? gd.toG(parseAmount(selectedPlan.variation_amount))
     : 0;
 
-  // Use contract credits if available, fall back to wallet balance
+  // Payment path priority:
+  //  1. Contract credits (pre-deposited G$) — single tx spend()
+  //  2. Wallet G$ directly            — approve + directSpend() (2 txs max)
   const useContractCredits = gd.contractConfigured && gd.contractCredits >= planCostG;
-  const canAfford = useContractCredits
-    ? gd.contractCredits >= planCostG
-    : gd.balance >= planCostG;
+  const useWalletDirect    = !useContractCredits && gd.contractConfigured && gd.balance >= planCostG;
+  const canAfford = gd.contractCredits >= planCostG || gd.balance >= planCostG;
 
   function handleConfirm() {
     if (!WALLET_CONFIGURED) {
@@ -144,19 +145,25 @@ export default function BuyDataScreen() {
     try {
       let txHash: string | undefined;
 
-      if (useContractCredits && !IS_SANDBOX) {
-        // ── On-chain spend via DataGaugeCredits contract ─────────
-        const result = await gd.spendCredits(
-          planCostG,
-          selectedPlan.variation_code,
-          phone.trim()
-        );
-        txHash = result.txHash;
-        await saveGDPurchase({ ...purchase, status: 'paid', txHash });
-      } else if (!IS_SANDBOX && WALLET_CONFIGURED) {
-        // ── Legacy: manual send — watch blockchain for payment ───
-        await saveGDPurchase({ ...purchase, status: 'paid', txHash: 'manual_send' });
-        txHash = 'manual_send';
+      if (!IS_SANDBOX) {
+        if (useContractCredits) {
+          // ── Path 1: spend pre-deposited credits (1 tx) ──────────
+          const result = await gd.spendCredits(
+            planCostG,
+            selectedPlan.variation_code,
+            phone.trim()
+          );
+          txHash = result.txHash;
+        } else if (useWalletDirect) {
+          // ── Path 2: approve + directSpend from wallet (2 txs) ───
+          const result = await gd.directSpend(
+            planCostG,
+            selectedPlan.variation_code,
+            phone.trim()
+          );
+          txHash = result.txHash;
+        }
+        if (txHash) await saveGDPurchase({ ...purchase, status: 'paid', txHash });
       }
       // Sandbox: skip on-chain step entirely
 
@@ -246,11 +253,13 @@ export default function BuyDataScreen() {
         <View style={styles.resultScreen}>
           <ActivityIndicator size="large" color={GD_GREEN} />
           <Text variant="h3" style={{ textAlign: 'center', marginTop: 16 }}>
-            {useContractCredits ? 'Signing transaction...' : 'Processing payment...'}
+            {useContractCredits || useWalletDirect ? 'Confirm in your wallet' : 'Processing payment...'}
           </Text>
           <Text variant="body" style={{ textAlign: 'center' }}>
             {useContractCredits
-              ? 'Confirm the transaction in your wallet. Delivery follows automatically.'
+              ? 'Spending pre-deposited G$ credits. Confirm the transaction in MetaMask / MiniPay.'
+              : useWalletDirect
+              ? 'Approving and sending G$ from your wallet. You may see up to 2 wallet prompts.'
               : 'Calling VTPass to deliver your data bundle.'}
           </Text>
           {IS_SANDBOX && (
@@ -370,7 +379,7 @@ export default function BuyDataScreen() {
             ) : (
               variations.map((v) => {
                 const costG = gd.toG(parseAmount(v.variation_amount));
-                const affordable = gd.balance >= costG;
+                const affordable = gd.contractCredits >= costG || gd.balance >= costG;
                 const isSelected = selectedPlan?.variation_code === v.variation_code;
                 return (
                   <TouchableOpacity
@@ -499,10 +508,12 @@ export default function BuyDataScreen() {
               <>
                 <Text variant="h2" style={{ marginBottom: 4 }}>Confirm Purchase</Text>
                 <Text variant="body" style={{ marginBottom: 16 }}>
-                  {useContractCredits
-                    ? 'Your wallet will sign one transaction to spend G$ credits, then data is delivered automatically.'
-                    : IS_SANDBOX
+                  {IS_SANDBOX
                     ? 'Sandbox mode — no real G$ will be spent.'
+                    : useContractCredits
+                    ? 'One wallet signature to spend your pre-deposited G$ credits. Data delivers automatically.'
+                    : useWalletDirect
+                    ? 'G$ will be sent directly from your wallet. You may see up to 2 wallet prompts (approve + pay).'
                     : 'You\'re about to buy data using your G$ tokens.'}
                 </Text>
 
@@ -524,7 +535,11 @@ export default function BuyDataScreen() {
                   <View style={styles.summaryRow}>
                     <Text variant="body">Payment method</Text>
                     <Text style={[styles.summaryVal, { color: GD_GREEN, fontSize: 11 }]}>
-                      {useContractCredits ? '● Contract Credits' : '● Wallet G$'}
+                      {useContractCredits
+                        ? '● Contract Credits'
+                        : useWalletDirect
+                        ? '● Wallet G$ (direct)'
+                        : '● Wallet G$'}
                     </Text>
                   </View>
                   <View style={[styles.summaryRow, styles.summaryTotal]}>
@@ -537,7 +552,14 @@ export default function BuyDataScreen() {
 
                 <View style={styles.modalActions}>
                   <Button label="Cancel" variant="ghost" onPress={() => setStep('select')} />
-                  <Button label={useContractCredits ? 'Pay with Credits' : 'Confirm & Pay'} onPress={handlePay} />
+                  <Button
+                    label={
+                      useContractCredits ? 'Pay with Credits'
+                      : useWalletDirect  ? 'Pay with Wallet G$'
+                      : 'Confirm & Pay'
+                    }
+                    onPress={handlePay}
+                  />
                 </View>
               </>
             )}
