@@ -222,7 +222,7 @@ export default function SpeedTestScreen() {
 
 const getStyles = (colors: ThemeColors) => StyleSheet.create({
   safe: { flex: 1, backgroundColor: colors.bg },
-  content: { padding: 16, gap: 16 },
+  content: { padding: 16, gap: 16, maxWidth: 560, width: '100%', alignSelf: 'center' as const },
   gaugeCard: {},
   gauges: { flexDirection: 'row', justifyContent: 'space-around', marginBottom: 16 },
   pingRow: { flexDirection: 'row', justifyContent: 'space-around', marginTop: 8 },

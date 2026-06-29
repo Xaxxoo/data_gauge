@@ -266,7 +266,7 @@ export default function TipsScreen() {
 
 const getStyles = (colors: ThemeColors) => StyleSheet.create({
   safe: { flex: 1, backgroundColor: colors.bg },
-  content: { padding: 16, gap: 16 },
+  content: { padding: 16, gap: 16, maxWidth: 560, width: '100%', alignSelf: 'center' as const },
   summaryRow: { flexDirection: 'row', alignItems: 'center' },
   filterRow: { gap: 8, paddingBottom: 4 },
   filterChip: {
