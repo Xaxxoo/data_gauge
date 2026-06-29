@@ -97,16 +97,15 @@ export default function Dashboard() {
           <GDBalancePill />
         </View>
 
-        {/* Active carrier */}
+        {/* Selected carrier */}
         {carrier && (
-          <View style={styles.carrierRow}>
-            <Text variant="caption">Active Network</Text>
-            <Badge
-              label={carrier.name}
-              color={CARRIER_COLORS[carrier.id]}
-              size="md"
-            />
-          </View>
+          <TouchableOpacity style={styles.carrierRow} onPress={() => router.push('/settings')} activeOpacity={0.7}>
+            <Text variant="caption">Selected Carrier</Text>
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+              <Badge label={carrier.name} color={CARRIER_COLORS[carrier.id]} size="md" />
+              <Text style={{ fontSize: 10, color: colors.textMuted }}>Change →</Text>
+            </View>
+          </TouchableOpacity>
         )}
 
         {/* ── BIG START / STOP BUTTON ── */}
