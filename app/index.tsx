@@ -97,16 +97,41 @@ export default function Dashboard() {
           <GDBalancePill />
         </View>
 
-        {/* Selected carrier */}
-        {carrier && (
-          <TouchableOpacity style={styles.carrierRow} onPress={() => router.push('/settings')} activeOpacity={0.7}>
-            <Text variant="caption">Selected Carrier</Text>
-            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
-              <Badge label={carrier.name} color={CARRIER_COLORS[carrier.id]} size="md" />
-              <Text style={{ fontSize: 10, color: colors.textMuted }}>Change →</Text>
-            </View>
-          </TouchableOpacity>
-        )}
+        {/* Carrier + live connection type row */}
+        <View style={styles.networkRow}>
+          {carrier && (
+            <TouchableOpacity style={styles.carrierRow} onPress={() => router.push('/settings')} activeOpacity={0.7}>
+              <Text variant="caption">Carrier</Text>
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
+                <Badge label={carrier.name} color={CARRIER_COLORS[carrier.id]} size="md" />
+                <Text style={{ fontSize: 10, color: colors.textMuted }}>Change →</Text>
+              </View>
+            </TouchableOpacity>
+          )}
+          {/* Live connection badge */}
+          {(() => {
+            const isWifi = network.type === 'wifi' || network.type === 'ethernet';
+            const isCellular = network.type === 'cellular';
+            const connColor = !network.isConnected
+              ? colors.danger
+              : isWifi
+              ? colors.success
+              : colors.accent;
+            const iconName = !network.isConnected
+              ? 'close-circle-outline'
+              : isWifi
+              ? 'wifi-outline'
+              : 'cellular-outline';
+            return (
+              <View style={[styles.connBadge, { backgroundColor: connColor + '18' }]}>
+                <Ionicons name={iconName} size={13} color={connColor} />
+                <Text style={{ fontSize: 12, fontWeight: '700', color: connColor }}>
+                  {network.displayType}
+                </Text>
+              </View>
+            );
+          })()}
+        </View>
 
         {/* ── BIG START / STOP BUTTON ── */}
         {!tracker.isTracking ? (
@@ -116,9 +141,7 @@ export default function Dashboard() {
             </View>
             <Text style={styles.startLabel}>Start Tracking</Text>
             <Text style={styles.startSub}>
-              {network.isConnected
-                ? `Connected via ${network.displayType}`
-                : 'No connection detected'}
+              {network.isConnected ? 'Tap to begin tracking usage' : 'No connection detected'}
             </Text>
           </TouchableOpacity>
         ) : (
@@ -392,7 +415,9 @@ const getStyles = (colors: ThemeColors) => StyleSheet.create({
   networkBadge: { flexDirection: 'row', alignItems: 'center', gap: 6, backgroundColor: colors.surface, paddingHorizontal: 10, paddingVertical: 6, borderRadius: 20 },
   dot: { width: 8, height: 8, borderRadius: 4 },
   networkText: { fontSize: 12, color: colors.textPrimary, fontWeight: '600' },
-  carrierRow: { flexDirection: 'row', alignItems: 'center', gap: 10 },
+  networkRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
+  carrierRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
+  connBadge: { flexDirection: 'row', alignItems: 'center', gap: 5, paddingHorizontal: 10, paddingVertical: 5, borderRadius: 20 },
 
   // Start button
   startBtn: { alignItems: 'center', paddingVertical: 32, gap: 12, backgroundColor: colors.surface, borderRadius: 20 },
